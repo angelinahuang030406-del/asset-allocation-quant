@@ -3,7 +3,7 @@
 
 This project starts from a portfolio my team designed by judgment for a UC Berkeley course (UGBA 133, Investments). The fund is a hypothetical $75M perpetual foundation with a ~7% target return (5% payout + 2% inflation). I rebuilt the backtest in Python and then asked a quant question: **would a systematic allocation rule, estimated only on past data, have done better than our hand-picked weights?**
 
-> The original asset-allocation write-up was a four-person group project. Everything in this repo (replication, walk-forward framework, optimizers, statistical tests, stress/factor analysis, Monte Carlo) is my own extension.
+> The original asset allocation (midterm and final reports) was a four-person group project. Everything in this repo (replication, walk-forward framework, optimizers, statistical tests, stress/factor analysis, Monte Carlo) is my individual extension of it, built with AI coding assistance.
 
 ## Key findings
 
