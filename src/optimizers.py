@@ -16,21 +16,25 @@ def inverse_vol(r):
 
 
 def _solve(objective, n, cap=1.0):
-    """Long-only, fully invested: weights in [0, cap], sum to 1."""
+    """Long-only, fully invested: weights in [0, cap], sum to 1.
+    ftol is tight because the default (1e-6) let SLSQP stop early and still report success."""
     res = minimize(objective, np.ones(n) / n, method="SLSQP",
                    bounds=[(0, cap)] * n,
-                   constraints={"type": "eq", "fun": lambda w: w.sum() - 1})
+                   constraints={"type": "eq", "fun": lambda w: w.sum() - 1},
+                   options={"ftol": 1e-12, "maxiter": 1000})
+    assert res.success, res.message
     return res.x
 
 
 def min_variance(r, cap=1.0):
-    cov = r.cov().values
+    cov = r.cov().values * 1e4  # monthly variances are ~1e-4; scale so the solver can see changes
     w = _solve(lambda w: w @ cov @ w, r.shape[1], cap)
     return pd.Series(w, index=r.columns)
 
 
 def max_sharpe(r, cap=1.0):
-    """Classic Markowitz tangency portfolio using SAMPLE mean returns."""
+    """Markowitz tangency portfolio. Pass EXCESS returns (asset minus T-bill) so the
+    ratio is a real Sharpe ratio; mean and covariance are trailing sample estimates."""
     mu, cov = r.mean().values, r.cov().values
     w = _solve(lambda w: -(w @ mu) / np.sqrt(w @ cov @ w), r.shape[1], cap)
     return pd.Series(w, index=r.columns)

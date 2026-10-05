@@ -4,11 +4,13 @@ import statsmodels.api as sm
 
 from backtest import backtest
 from data import ORIGINAL_WEIGHTS, load
+from strategies import sixty_forty
+
+HAC_LAGS = 6  # Newey-West lags for the regression standard errors
 
 rets, spx, rf = load()
 orig, _ = backtest(rets, pd.Series(ORIGINAL_WEIGHTS), rule="annual", cost=0.001)
-sixty_forty, _ = backtest(rets[["10Y Treasury"]].assign(SPX=spx),
-                          pd.Series({"SPX": 0.6, "10Y Treasury": 0.4}), rule="annual", cost=0.001)
+sixty_forty, _ = sixty_forty(rets, spx)
 
 # ---- (a) stress periods. Windows are well-known episode dates picked by hand
 #      (not optimized); the GFC window matches the drawdown in the course report.
@@ -69,11 +71,18 @@ X = X.dropna()
 
 y = (orig - ff["RF"]).reindex(X.index).dropna()
 X = X.loc[y.index]
-model = sm.OLS(y, sm.add_constant(X)).fit(cov_type="HAC", cov_kwds={"maxlags": 6})
-coef = pd.DataFrame({"coef": model.params, "t-stat": model.tvalues})
-coef.loc["const", "coef"] *= 12  # annualize alpha
-coef = coef.rename(index={"const": "Alpha (annual)"})
-print(f"(b) Factor regression of original portfolio excess returns, {y.index[0]:%Y-%m} to {y.index[-1]:%Y-%m}")
-print(coef.round(3).to_string())
-print(f"R-squared: {model.rsquared:.3f}")
-coef.assign(r2=model.rsquared).to_csv("results/04_factor_regression.csv")
+# NOTE: TERM and GOLD are built from two of the portfolio's own holdings (IEF, GLD), so part
+# of the R-squared is mechanical. Spec 2 adds the three sleeves no factor covers (35% of weight).
+specs = {"Spec 1: FF5 + MOM + TERM + GOLD": X,
+         "Spec 2: + Intl, REITs, TIPS": X.assign(**{c: (rets[c] - ff["RF"]).reindex(X.index)
+                                                     for c in ["Intl Developed", "REITs", "TIPS"]})}
+rows = {}
+for name, Xs in specs.items():
+    m = sm.OLS(y, sm.add_constant(Xs)).fit(cov_type="HAC", cov_kwds={"maxlags": HAC_LAGS})
+    coef = m.params.rename({"const": "Alpha (annual)"})
+    coef["Alpha (annual)"] *= 12
+    rows[name] = pd.concat([coef, pd.Series({"t(alpha)": m.tvalues["const"], "R-squared": m.rsquared})])
+table = pd.DataFrame(rows)
+print(f"(b) Factor regressions of original portfolio excess returns, {y.index[0]:%Y-%m} to {y.index[-1]:%Y-%m}, HAC lags {HAC_LAGS}")
+print(table.round(3).to_string())
+table.to_csv("results/04_factor_regression.csv")

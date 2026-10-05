@@ -1,4 +1,5 @@
-"""Download ETF prices and build monthly total-return series."""
+"""Download ETF and mutual-fund prices (PFORX, VFINX are mutual funds) and build monthly
+total-return series. END is fixed so a rerun reproduces the README numbers."""
 import pandas as pd
 import yfinance as yf
 
@@ -15,6 +16,7 @@ ASSETS = {
     "Global Bonds (Hedged)": "PFORX",  # BNDX only starts 2013; PFORX corr 0.93
     "REITs": "VNQ",
 }
+END = "2026-10-01"  # last full month in the published results: Sep 2026
 BENCHMARK = "VFINX"  # Vanguard 500 Index, same benchmark as the original report
 
 # the hand-picked weights from the original group project
@@ -28,15 +30,14 @@ ORIGINAL_WEIGHTS = {
 
 def download(path="data/monthly_returns.csv"):
     tickers = list(ASSETS.values()) + [BENCHMARK]
-    px = yf.download(tickers, start="2000-01-01", auto_adjust=True, progress=False)["Close"]
+    px = yf.download(tickers, start="2000-01-01", end=END, auto_adjust=True, progress=False)["Close"]
     monthly = px.resample("ME").last().pct_change()
     names = {v: k for k, v in ASSETS.items()} | {BENCHMARK: "S&P 500"}
     monthly = monthly.rename(columns=names)
     # keep only months where every asset has data (GLD starts Nov 2004)
     monthly = monthly.dropna()
-    monthly = monthly[monthly.index <= pd.Timestamp.today()]  # drop unfinished month
-    # risk-free: 13-week T-bill yield (annual %) -> monthly return
-    irx = yf.download("^IRX", start="2000-01-01", progress=False)["Close"].squeeze()
+    # risk-free for month t: average 13-week T-bill yield during month t (annual %) -> monthly
+    irx = yf.download("^IRX", start="2000-01-01", end=END, progress=False)["Close"].squeeze()
     monthly["RF"] = (irx.resample("ME").mean() / 100 / 12).reindex(monthly.index)
     monthly.to_csv(path)
     return monthly

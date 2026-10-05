@@ -9,6 +9,7 @@ import pandas as pd
 
 from backtest import backtest
 from data import ORIGINAL_WEIGHTS, load
+from strategies import sixty_forty
 
 YEARS, PAYOUT, N_PATHS, BLOCK = 50, 0.05, 10_000, 12
 rng = np.random.default_rng(0)
@@ -26,8 +27,7 @@ ew = pd.Series(1 / rets.shape[1], index=rets.columns)
 strategies = {
     "Original (hand-picked)": backtest(rets, pd.Series(ORIGINAL_WEIGHTS), "annual", cost=0.001)[0],
     "Equal Weight": backtest(rets, ew, "annual", cost=0.001)[0],
-    "60/40": backtest(rets[["10Y Treasury"]].assign(SPX=spx),
-                      pd.Series({"SPX": 0.6, "10Y Treasury": 0.4}), "annual", cost=0.001)[0],
+    "60/40": sixty_forty(rets, spx)[0],
     "S&P 500": spx,
 }
 data = pd.DataFrame(strategies).join(inflation.rename("CPI")).dropna()
@@ -36,7 +36,7 @@ print(f"Bootstrapping from {data.index[0]:%Y-%m} to {data.index[-1]:%Y-%m} ({T} 
 
 # same random blocks for every strategy -> a fair, paired comparison
 n_months = YEARS * 12
-starts = rng.integers(0, T - BLOCK, size=(N_PATHS, n_months // BLOCK))
+starts = rng.integers(0, T - BLOCK + 1, size=(N_PATHS, n_months // BLOCK))
 idx = (starts[:, :, None] + np.arange(BLOCK)).reshape(N_PATHS, -1)
 
 rows, paths = {}, {}

@@ -17,10 +17,11 @@ def backtest(returns, target, rule="annual", band=0.05, cost=0.001):
     out, turnover = [], []
     for date, r in returns.iterrows():
         tgt = target.loc[:date].iloc[-1] if isinstance(target, pd.DataFrame) else target
-        tgt = tgt.reindex(returns.columns).fillna(0)
+        tgt = tgt.reindex(returns.columns)
+        assert tgt.notna().all() and abs(tgt.sum() - 1) < 1e-6, f"bad target weights at {date:%Y-%m}"
 
         if w is None:
-            w, trade = tgt.copy(), 0.0
+            w, trade = tgt.copy(), tgt.abs().sum()  # building the portfolio from cash also costs
         else:
             drift = (w - tgt).abs().max()
             is_jan = date.month == 1  # rebalance at start of January
@@ -36,20 +37,25 @@ def backtest(returns, target, rule="annual", band=0.05, cost=0.001):
 
         port_r = (w * r).sum() - trade * cost
         out.append(port_r)
-        turnover.append(trade / 2)  # one-way turnover
+        turnover.append(trade / 2 if len(out) > 1 else 0.0)  # one-way; the initial build is not turnover
         w = w * (1 + r) / (1 + (w * r).sum())  # weights drift with prices
 
     return pd.Series(out, index=returns.index), pd.Series(turnover, index=returns.index)
 
 
 def max_drawdown(r):
+    """Worst month-end drop from a previous peak (the starting $1 counts as a peak)."""
     wealth = (1 + r).cumprod()
-    return (wealth / wealth.cummax() - 1).min()
+    return (wealth / wealth.cummax().clip(lower=1) - 1).min()
 
 
 def metrics(r, rf=None, bench=None):
     """Annualized stats for a monthly return series."""
-    rf = 0.0 if rf is None else rf.reindex(r.index).fillna(0)
+    if rf is None:
+        rf = 0.0
+    else:
+        rf = rf.reindex(r.index)
+        assert rf.notna().all(), "missing risk-free rate"
     excess = r - rf
     years = len(r) / 12
     cagr = (1 + r).prod() ** (1 / years) - 1
