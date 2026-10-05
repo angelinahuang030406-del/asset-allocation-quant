@@ -54,16 +54,12 @@ def metrics(r, rf=None, bench=None):
     years = len(r) / 12
     cagr = (1 + r).prod() ** (1 / years) - 1
     vol = r.std() * np.sqrt(12)
-    downside = r[r < 0].std() * np.sqrt(12)
     out = {
         "CAGR": cagr,
         "Volatility": vol,
         "Sharpe": excess.mean() / excess.std() * np.sqrt(12),
-        "Sortino": excess.mean() * 12 / downside,
         "Max Drawdown": max_drawdown(r),
         "Calmar": cagr / -max_drawdown(r),
-        "Worst Month": r.min(),
-        "CVaR 5% (monthly)": r[r <= r.quantile(0.05)].mean(),
     }
     if bench is not None:
         b = bench.reindex(r.index)

@@ -50,6 +50,18 @@ print(table[["CAGR", "Volatility", "Sharpe", "Max Drawdown", "Calmar", "Avg Annu
 table.to_csv("results/02_walkforward_metrics.csv")
 pd.concat(weights).to_csv("results/02_walkforward_weights.csv")
 
+# sub-periods: before 2022, the 2022 rate shock, and after (when T-bills paid ~5%)
+bonds = ["Global Bonds (Hedged)", "10Y Treasury", "TIPS"]
+sub = pd.DataFrame({k: {
+    "Sharpe 2010-2021": metrics(v.loc[:"2021"], rf)["Sharpe"],
+    "Return 2022": (1 + v.loc["2022"]).prod() - 1,
+    "Sharpe 2023-": metrics(v.loc["2023":], rf)["Sharpe"],
+    "Bond+TIPS weight Jan 2022": weights[k].loc["2022-01-31", bonds].sum() if k in weights else None,
+} for k, v in results.items()}).T
+print("\nSub-periods")
+print(sub.round(2).to_string())
+sub.to_csv("results/02_subperiods.csv")
+
 # wealth curves
 fig, ax = plt.subplots(figsize=(10, 5))
 for k, v in results.items():

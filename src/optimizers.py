@@ -53,17 +53,21 @@ def hrp(r):
     # 1) cluster assets by correlation distance
     dist = np.sqrt(((1 - corr) / 2).clip(lower=0))
     order = corr.index[leaves_list(linkage(squareform(dist.values, checks=False), "single"))]
-    # 2) recursive bisection: split risk between the two halves by inverse variance
+    # 2) recursive bisection: split each group in half, give the less risky half more weight
     w = pd.Series(1.0, index=order)
-    clusters = [list(order)]
-    while clusters:
-        clusters = [c[i:j] for c in clusters for i, j in ((0, len(c) // 2), (len(c) // 2, len(c))) if len(c) > 1]
-        for k in range(0, len(clusters), 2):
-            left, right = clusters[k], clusters[k + 1]
+    groups = [list(order)]
+    while groups:
+        next_groups = []
+        for g in groups:
+            if len(g) < 2:
+                continue
+            left, right = g[:len(g) // 2], g[len(g) // 2:]
             v_left, v_right = _cluster_var(cov, left), _cluster_var(cov, right)
-            alpha = 1 - v_left / (v_left + v_right)
+            alpha = v_right / (v_left + v_right)   # share of weight that goes left
             w[left] *= alpha
             w[right] *= 1 - alpha
+            next_groups += [left, right]
+        groups = next_groups
     return w.reindex(r.columns)
 
 

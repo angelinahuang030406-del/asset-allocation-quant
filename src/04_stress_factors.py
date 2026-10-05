@@ -10,7 +10,8 @@ orig, _ = backtest(rets, pd.Series(ORIGINAL_WEIGHTS), rule="annual", cost=0.001)
 sixty_forty, _ = backtest(rets[["10Y Treasury"]].assign(SPX=spx),
                           pd.Series({"SPX": 0.6, "10Y Treasury": 0.4}), rule="annual", cost=0.001)
 
-# ---- (a) stress periods (peak-to-trough windows of each episode)
+# ---- (a) stress periods. Windows are well-known episode dates picked by hand
+#      (not optimized); the GFC window matches the drawdown in the course report.
 STRESS = {
     "GFC (Nov07-Feb09)": ("2007-11", "2009-02"),
     "Euro crisis (May-Sep 2011)": ("2011-05", "2011-09"),
@@ -26,6 +27,25 @@ stress = pd.DataFrame({name: {k: (1 + s.loc[a:b]).prod() - 1 for k, s in series.
 print("(a) Cumulative return in stress periods")
 print((stress * 100).round(1).to_string(), "\n")
 stress.to_csv("results/04_stress.csv")
+
+# where did the extra loss vs 60/40 come from? compare each half of the portfolio
+# with its 60/40 counterpart (buy-and-hold inside the window, so approximate)
+w0 = pd.Series(ORIGINAL_WEIGHTS)
+risky = ["US Large Value", "US Large Growth", "US Mid Value", "US Mid Growth", "Intl Developed", "REITs"]
+safe = [a for a in w0.index if a not in risky]
+split = {}
+for name, (a, b) in STRESS.items():
+    cum = (1 + rets.loc[a:b]).prod() - 1
+    split[name] = {
+        "Equity-like 60% sleeve": (cum[risky] * w0[risky]).sum() / w0[risky].sum(),
+        "S&P 500": (1 + spx.loc[a:b]).prod() - 1,
+        "Defensive 40% sleeve": (cum[safe] * w0[safe]).sum() / w0[safe].sum(),
+        "10Y Treasury": cum["10Y Treasury"],
+    }
+split = pd.DataFrame(split).T
+print("Original portfolio split into its two halves vs the 60/40 halves")
+print((split * 100).round(1).to_string(), "\n")
+split.to_csv("results/04_stress_split.csv")
 
 
 # ---- (b) factor regression: equity factors (FF5 + momentum) + bond and gold factors
