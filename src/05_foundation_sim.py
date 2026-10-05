@@ -1,5 +1,8 @@
 """Module 6: can the foundation pay out 5% a year for 50 years and keep its real value?
-Block-bootstrap historical (return, inflation) pairs into 10,000 fifty-year paths."""
+Block-bootstrap historical (return, inflation) pairs into 10,000 fifty-year paths.
+`--ffill-cpi` runs a sensitivity check with the missing Oct 2025 CPI carried forward."""
+import sys
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -13,7 +16,11 @@ rng = np.random.default_rng(0)
 rets, spx, rf = load()
 cpi = pd.read_csv("data/cpi.csv", index_col=0, parse_dates=True).squeeze()
 cpi.index = cpi.index + pd.offsets.MonthEnd(0)
+# Oct 2025 CPI was never published (government shutdown), so Oct and Nov 2025
+# have no inflation number; those 2 months are dropped below instead of guessed
 inflation = cpi.pct_change(fill_method=None)
+if "--ffill-cpi" in sys.argv:  # sensitivity check: carry Sep 2025 CPI forward instead
+    inflation = cpi.ffill().pct_change()
 
 ew = pd.Series(1 / rets.shape[1], index=rets.columns)
 strategies = {
@@ -48,6 +55,8 @@ for name in strategies:
 
 table = pd.DataFrame(rows).T
 print(table.round(3).to_string())
+if "--ffill-cpi" in sys.argv:
+    raise SystemExit  # sensitivity run only: don't overwrite the main results
 table.to_csv("results/05_foundation_sim.csv")
 
 fig, ax = plt.subplots(figsize=(10, 5))

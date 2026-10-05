@@ -43,6 +43,9 @@ for name, (a, b) in STRESS.items():
         "10Y Treasury": cum["10Y Treasury"],
     }
 split = pd.DataFrame(split).T
+# how many points of the total gap vs 60/40 each half explains (60% and 40% weights)
+split["Equity gap (pts of total)"] = 0.6 * (split["Equity-like 60% sleeve"] - split["S&P 500"])
+split["Defensive gap (pts of total)"] = 0.4 * (split["Defensive 40% sleeve"] - split["10Y Treasury"])
 print("Original portfolio split into its two halves vs the 60/40 halves")
 print((split * 100).round(1).to_string(), "\n")
 split.to_csv("results/04_stress_split.csv")
